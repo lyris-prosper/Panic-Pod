@@ -2,12 +2,25 @@ import { create } from 'zustand';
 import { Asset, PanicStrategy, ChainExecution, ExecutionLog } from '@/types';
 import { mockAssets } from '@/lib/mockData';
 
-interface StoreState {
-  // Wallet
-  isConnected: boolean;
-  walletAddress: string | null;
-  connectWallet: () => void;
-  disconnectWallet: () => void;
+interface WalletState {
+  // EVM (MetaMask)
+  evmAddress: string | null;
+  evmChainId: number | null;
+  isEvmConnected: boolean;
+
+  // Bitcoin (Xverse)
+  btcAddress: string | null;
+  isBtcConnected: boolean;
+
+  // Combined check
+  isFullyConnected: boolean;
+}
+
+interface StoreState extends WalletState {
+  // Wallet actions
+  setEvmWallet: (address: string | null, chainId: number | null) => void;
+  setBtcWallet: (address: string | null) => void;
+  clearWallets: () => void;
 
   // Assets
   assets: Asset[];
@@ -27,23 +40,57 @@ interface StoreState {
   resetExecution: () => void;
 }
 
-export const useStore = create<StoreState>((set, get) => ({
-  // Wallet
-  isConnected: false,
-  walletAddress: null,
-  connectWallet: () => {
-    // Mock wallet connection
-    set({
-      isConnected: true,
-      walletAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1',
-      assets: mockAssets,
-      totalValue: mockAssets.reduce((sum, asset) => sum + asset.usdValue, 0),
+export const useStore = create<StoreState>((set) => ({
+  // Wallet state
+  evmAddress: null,
+  evmChainId: null,
+  isEvmConnected: false,
+  btcAddress: null,
+  isBtcConnected: false,
+  isFullyConnected: false,
+
+  // Wallet actions
+  setEvmWallet: (address, chainId) => {
+    set((state) => {
+      const isEvmConnected = !!address;
+      const isFullyConnected = isEvmConnected && state.isBtcConnected;
+      return {
+        evmAddress: address,
+        evmChainId: chainId,
+        isEvmConnected,
+        isFullyConnected,
+        // Load mock assets when both wallets connected
+        assets: isFullyConnected ? mockAssets : state.assets,
+        totalValue: isFullyConnected
+          ? mockAssets.reduce((sum, asset) => sum + asset.usdValue, 0)
+          : state.totalValue,
+      };
     });
   },
-  disconnectWallet: () => {
+  setBtcWallet: (address) => {
+    set((state) => {
+      const isBtcConnected = !!address;
+      const isFullyConnected = state.isEvmConnected && isBtcConnected;
+      return {
+        btcAddress: address,
+        isBtcConnected,
+        isFullyConnected,
+        // Load mock assets when both wallets connected
+        assets: isFullyConnected ? mockAssets : state.assets,
+        totalValue: isFullyConnected
+          ? mockAssets.reduce((sum, asset) => sum + asset.usdValue, 0)
+          : state.totalValue,
+      };
+    });
+  },
+  clearWallets: () => {
     set({
-      isConnected: false,
-      walletAddress: null,
+      evmAddress: null,
+      evmChainId: null,
+      isEvmConnected: false,
+      btcAddress: null,
+      isBtcConnected: false,
+      isFullyConnected: false,
       assets: [],
       totalValue: 0,
       strategy: null,

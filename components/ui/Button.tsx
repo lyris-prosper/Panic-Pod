@@ -1,7 +1,7 @@
 import React from 'react';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'danger' | 'safe' | 'outline';
+  variant?: 'primary' | 'danger' | 'safe' | 'outline' | 'warning';
   size?: 'sm' | 'md' | 'lg' | 'xl';
   glow?: boolean;
   children: React.ReactNode;
@@ -22,6 +22,7 @@ export const Button: React.FC<ButtonProps> = ({
     danger: 'bg-danger border-danger-dark text-white hover:bg-danger-dark',
     safe: 'bg-safe border-safe-dark text-white hover:bg-safe-dark',
     outline: 'bg-transparent border-pod-border text-pod-text hover:border-safe hover:text-safe hover:bg-safe/10',
+    warning: 'bg-warning border-warning text-black hover:bg-warning/80',
   };
 
   const sizes = {
@@ -34,6 +35,8 @@ export const Button: React.FC<ButtonProps> = ({
   const glowClass = glow
     ? variant === 'danger'
       ? 'danger-glow animate-pulse-danger'
+      : variant === 'warning'
+      ? 'shadow-[0_0_20px_rgba(245,158,11,0.5)]'
       : 'safe-glow'
     : '';
 

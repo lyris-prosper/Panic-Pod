@@ -3,20 +3,60 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/store/useStore';
+import { useEvmWallet } from '@/hooks/useEvmWallet';
+import { useBitcoinWallet } from '@/hooks/useBitcoinWallet';
 import { Button } from '@/components/ui/Button';
 
 export default function Home() {
   const router = useRouter();
-  const { isConnected, connectWallet } = useStore();
+  const { isFullyConnected, setEvmWallet, setBtcWallet } = useStore();
 
+  const evmWallet = useEvmWallet();
+  const btcWallet = useBitcoinWallet();
+
+  // Sync EVM wallet state to store
   useEffect(() => {
-    if (isConnected) {
+    // Only sync if hook has real values OR if explicitly disconnecting (was connected, now null)
+    if (evmWallet.address !== undefined) {
+      console.log('Syncing EVM wallet to store:', evmWallet.address, evmWallet.chainId);
+      setEvmWallet(evmWallet.address, evmWallet.chainId);
+    }
+  }, [evmWallet.address, evmWallet.chainId, setEvmWallet]);
+
+  // Sync BTC wallet state to store
+  useEffect(() => {
+    if (btcWallet.address !== undefined) {
+      console.log('Syncing BTC wallet to store:', btcWallet.address);
+      setBtcWallet(btcWallet.address);
+    }
+  }, [btcWallet.address, setBtcWallet]);
+
+  // Debug: Log connection status
+  useEffect(() => {
+    console.log('Connection status:', {
+      evmConnected: evmWallet.isConnected,
+      evmAddress: evmWallet.address,
+      btcConnected: btcWallet.isConnected,
+      btcAddress: btcWallet.address,
+      isFullyConnected,
+    });
+  }, [evmWallet.isConnected, evmWallet.address, btcWallet.isConnected, btcWallet.address, isFullyConnected]);
+
+  // Redirect when both wallets connected
+  useEffect(() => {
+    console.log('Checking redirect, isFullyConnected:', isFullyConnected);
+    if (isFullyConnected) {
+      console.log('Redirecting to dashboard...');
       router.push('/dashboard');
     }
-  }, [isConnected, router]);
+  }, [isFullyConnected, router]);
 
-  const handleConnect = () => {
-    connectWallet();
+  const handleConnectEvm = () => {
+    evmWallet.connect();
+  };
+
+  const handleConnectBtc = () => {
+    btcWallet.connect();
   };
 
   return (
@@ -64,34 +104,81 @@ export default function Home() {
           {' '}assets simultaneously when market crashes
         </p>
 
-        {/* CTA Button */}
+        {/* Wallet Connection */}
         <div className="flex flex-col items-center gap-6">
-          <Button
-            variant="safe"
-            size="xl"
-            glow
-            onClick={handleConnect}
-            className="group"
-          >
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+          <div className="flex flex-col sm:flex-row gap-4">
+            {/* EVM Wallet Button */}
+            <Button
+              variant={evmWallet.isConnected ? 'outline' : 'safe'}
+              size="lg"
+              glow={!evmWallet.isConnected}
+              onClick={handleConnectEvm}
+              disabled={evmWallet.isConnecting}
+              className="min-w-[200px]"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-              />
-            </svg>
-            Connect Wallet
-          </Button>
+              {evmWallet.isConnecting ? (
+                <span className="animate-pulse">Connecting...</span>
+              ) : evmWallet.isConnected ? (
+                <>
+                  <div className="w-2 h-2 bg-safe rounded-full animate-pulse" />
+                  <span className="font-mono text-sm">
+                    {evmWallet.address?.slice(0, 6)}...{evmWallet.address?.slice(-4)}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                  </svg>
+                  Connect EVM Wallet
+                </>
+              )}
+            </Button>
 
-          <p className="text-sm text-pod-muted font-mono">
-            Supports OKX Wallet (BTC, EVM, Solana)
-          </p>
+            {/* Bitcoin Wallet Button */}
+            <Button
+              variant={btcWallet.isConnected ? 'outline' : 'warning'}
+              size="lg"
+              glow={!btcWallet.isConnected}
+              onClick={handleConnectBtc}
+              disabled={btcWallet.isConnecting}
+              className="min-w-[200px]"
+            >
+              {btcWallet.isConnecting ? (
+                <span className="animate-pulse">Connecting...</span>
+              ) : btcWallet.isConnected ? (
+                <>
+                  <div className="w-2 h-2 bg-warning rounded-full animate-pulse" />
+                  <span className="font-mono text-sm">
+                    {btcWallet.address?.slice(0, 6)}...{btcWallet.address?.slice(-4)}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M23.638 14.904c-1.602 6.43-8.113 10.34-14.542 8.736C2.67 22.05-1.244 15.525.362 9.105 1.962 2.67 8.475-1.243 14.9.358c6.43 1.605 10.342 8.115 8.738 14.546z" />
+                  </svg>
+                  Connect Bitcoin Wallet
+                </>
+              )}
+            </Button>
+          </div>
+
+          {/* Connection Status */}
+          <div className="flex flex-col items-center gap-2">
+            {(evmWallet.error || btcWallet.error) && (
+              <p className="text-sm text-danger font-mono">
+                {evmWallet.error || btcWallet.error}
+              </p>
+            )}
+            <p className="text-sm text-pod-muted font-mono">
+              {evmWallet.isConnected && btcWallet.isConnected
+                ? 'Both wallets connected! Redirecting...'
+                : evmWallet.isConnected || btcWallet.isConnected
+                ? 'Connect both wallets to continue'
+                : 'MetaMask (EVM) + Xverse (Bitcoin Signet)'}
+            </p>
+          </div>
         </div>
 
         {/* Features grid */}

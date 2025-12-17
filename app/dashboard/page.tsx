@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/store/useStore';
+import { useEvmWallet } from '@/hooks/useEvmWallet';
+import { useBitcoinWallet } from '@/hooks/useBitcoinWallet';
 import { Navbar } from '@/components/layout/Navbar';
 import { AssetCard } from '@/components/dashboard/AssetCard';
 import { Button } from '@/components/ui/Button';
@@ -13,7 +15,23 @@ import { mockParsedTriggers, mockExecutionPlan } from '@/lib/mockData';
 
 export default function Dashboard() {
   const router = useRouter();
-  const { isConnected, assets, totalValue, strategy, setStrategy } = useStore();
+  const { isFullyConnected, assets, totalValue, strategy, setStrategy, setEvmWallet, setBtcWallet } = useStore();
+  const evmWallet = useEvmWallet();
+  const btcWallet = useBitcoinWallet();
+
+  // Sync wallet states to store - only update if hook has real values
+  // This prevents overwriting store with null when hooks re-initialize
+  useEffect(() => {
+    if (evmWallet.address) {
+      setEvmWallet(evmWallet.address, evmWallet.chainId);
+    }
+  }, [evmWallet.address, evmWallet.chainId, setEvmWallet]);
+
+  useEffect(() => {
+    if (btcWallet.address) {
+      setBtcWallet(btcWallet.address);
+    }
+  }, [btcWallet.address, setBtcWallet]);
   const [isStrategyModalOpen, setIsStrategyModalOpen] = useState(false);
   const [showAIParse, setShowAIParse] = useState(false);
 
@@ -25,12 +43,12 @@ export default function Dashboard() {
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   useEffect(() => {
-    if (!isConnected) {
+    if (!isFullyConnected) {
       router.push('/');
     }
-  }, [isConnected, router]);
+  }, [isFullyConnected, router]);
 
-  if (!isConnected) {
+  if (!isFullyConnected) {
     return null;
   }
 

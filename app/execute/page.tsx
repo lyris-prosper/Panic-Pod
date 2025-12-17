@@ -12,7 +12,7 @@ import { Card } from '@/components/ui/Card';
 export default function Execute() {
   const router = useRouter();
   const {
-    isConnected,
+    isFullyConnected,
     strategy,
     executions,
     executionLogs,
@@ -29,7 +29,7 @@ export default function Execute() {
   const [gasSpent] = useState((Math.random() * 50 + 20).toFixed(2));
 
   useEffect(() => {
-    if (!isConnected || !strategy) {
+    if (!isFullyConnected || !strategy) {
       router.push('/dashboard');
       return;
     }
@@ -114,7 +114,7 @@ export default function Execute() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!isConnected || !strategy) {
+  if (!isFullyConnected || !strategy) {
     return null;
   }
 
