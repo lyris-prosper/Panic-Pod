@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { Asset, PanicStrategy, ChainExecution, ExecutionLog, WalletBalances, PriceData } from '@/types';
+import { Asset, PanicStrategy, ChainExecution, ExecutionLog, WalletBalances, PriceData, StrategyMode, ExecutionPhase, ExecutionStep } from '@/types';
+import { DUST_THRESHOLD_USD } from '@/types';
 
 interface WalletState {
   // EVM (MetaMask)
@@ -43,9 +44,11 @@ interface StoreState extends WalletState {
 
   // Execution
   isExecuting: boolean;
+  executionMode: StrategyMode | null;
+  executionPhase: ExecutionPhase;
   executions: ChainExecution[];
   executionLogs: ExecutionLog[];
-  startExecution: () => void;
+  startExecution: (mode: StrategyMode) => void;
   updateExecution: (chainIndex: number, execution: ChainExecution) => void;
   addLog: (log: ExecutionLog) => void;
   resetExecution: () => void;
@@ -125,42 +128,136 @@ export const useStore = create<StoreState>((set) => ({
 
   // Execution
   isExecuting: false,
+  executionMode: null,
+  executionPhase: 'loading',
   executions: [],
   executionLogs: [],
-  startExecution: () => {
-    set({
-      isExecuting: true,
-      executions: [
-        {
-          chain: 'btc',
+  startExecution: (mode: StrategyMode) => {
+    set((state) => {
+      const strategy = state.strategy;
+      const balances = state.balances;
+      const prices = state.prices;
+
+      if (!strategy || !balances || !prices) {
+        return state;
+      }
+
+      const config = mode === 'escape' ? strategy.escapeConfig : strategy.havenConfig;
+      if (!config) {
+        return state;
+      }
+
+      const executions: ChainExecution[] = [];
+
+      // BTC execution - always transfer to safe address
+      executions.push({
+        chain: 'btc',
+        status: 'pending',
+        steps: [{
+          name: 'Transfer BTC to Safe Address',
+          status: 'pending'
+        }]
+      });
+
+      // ETH execution - depends on mode
+      const ethSteps: ExecutionStep[] = [];
+
+      if (mode === 'escape') {
+        // Escape mode: Simple transfer or skip
+        if (config.evmAddress) {
+          ethSteps.push({
+            name: 'Transfer ETH to Safe Address',
+            status: 'pending'
+          });
+        } else {
+          ethSteps.push({
+            name: 'Transfer ETH to Safe Address',
+            status: 'pending',
+            skipReason: 'No EVM address configured'
+          });
+        }
+      } else {
+        // Haven mode: Process each chain separately
+        const chains = [
+          { name: 'Sepolia', key: 'sepolia' as const },
+          { name: 'Base', key: 'base' as const },
+          { name: 'Linea', key: 'linea' as const }
+        ];
+
+        for (const { name, key } of chains) {
+          const balance = balances.eth[key];
+          const usdValue = balance * prices.ethereum;
+
+          if (balance === 0) {
+            ethSteps.push({
+              name: `Process ETH on ${name}`,
+              status: 'pending',
+              skipReason: 'No balance'
+            });
+          } else if (usdValue < DUST_THRESHOLD_USD) {
+            // Dust amount
+            if (config.evmAddress) {
+              ethSteps.push({
+                name: `Process ETH on ${name}`,
+                status: 'pending',
+                warning: `Below $${DUST_THRESHOLD_USD} threshold`,
+                subSteps: [{
+                  name: 'Transfer to EVM fallback',
+                  status: 'pending'
+                }]
+              });
+            } else {
+              ethSteps.push({
+                name: `Process ETH on ${name}`,
+                status: 'pending',
+                skipReason: `Dust amount (below $${DUST_THRESHOLD_USD})`
+              });
+            }
+          } else {
+            // Above threshold - swap via ZetaChain
+            ethSteps.push({
+              name: `Process ETH on ${name}`,
+              status: 'pending',
+              subSteps: [
+                { name: 'Approve Gateway', status: 'pending' },
+                { name: 'Send to ZetaChain', status: 'pending' },
+                { name: 'Swap & Withdraw to BTC', status: 'pending' }
+              ]
+            });
+          }
+        }
+      }
+
+      executions.push({
+        chain: 'eth',
+        status: 'pending',
+        steps: ethSteps
+      });
+
+      // ZETA execution - always skip
+      executions.push({
+        chain: 'zeta',
+        status: 'pending',
+        steps: [{
+          name: 'ZETA Assets',
           status: 'pending',
-          steps: [{ name: 'Send BTC to safe address', status: 'pending' }],
-        },
-        {
-          chain: 'eth',
-          status: 'pending',
-          steps: [
-            { name: 'Approve ETH', status: 'pending' },
-            { name: 'Swap to USDC', status: 'pending' },
-            { name: 'Bridge to ZetaChain', status: 'pending' },
-          ],
-        },
-        {
-          chain: 'zeta',
-          status: 'pending',
-          steps: [
-            { name: 'Process ZETA assets', status: 'pending' },
-            { name: 'Send to safe address', status: 'pending' },
-          ],
-        },
-      ],
-      executionLogs: [
-        {
-          timestamp: new Date().toISOString(),
-          message: 'Evacuation sequence initiated',
-          type: 'info',
-        },
-      ],
+          skipReason: 'No action required - remains on ZetaChain'
+        }]
+      });
+
+      return {
+        isExecuting: true,
+        executionMode: mode,
+        executionPhase: 'executing' as ExecutionPhase,
+        executions,
+        executionLogs: [
+          {
+            timestamp: new Date().toISOString(),
+            message: `${mode === 'escape' ? 'Security Escape' : 'Safe Haven'} evacuation sequence initiated`,
+            type: 'info' as const,
+          },
+        ],
+      };
     });
   },
   updateExecution: (chainIndex, execution) => {
@@ -178,6 +275,8 @@ export const useStore = create<StoreState>((set) => ({
   resetExecution: () => {
     set({
       isExecuting: false,
+      executionMode: null,
+      executionPhase: 'loading',
       executions: [],
       executionLogs: [],
     });

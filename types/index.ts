@@ -73,6 +73,9 @@ export interface ExecutionStep {
   name: string;
   status: StepStatus;
   txHash?: string;
+  subSteps?: ExecutionStep[];    // For nested steps (e.g., multi-chain swaps)
+  skipReason?: string;            // Why this step was skipped
+  warning?: string;               // Warnings about dust/gas
 }
 
 export interface ChainExecution {
@@ -113,4 +116,20 @@ export interface PriceData {
   bitcoin: number;
   ethereum: number;
   zetachain: number;
+}
+
+// Execution action types for preview
+export type ExecutionAction = 'transfer' | 'swap' | 'skip';
+export type ExecutionPhase = 'loading' | 'preview' | 'executing' | 'complete';
+
+export interface ExecutionPreviewItem {
+  chain: string;
+  asset: string;
+  balance: number;
+  usdValue: number;
+  action: ExecutionAction;
+  destination: string;
+  estimatedReceive?: number;
+  skipReason?: string;
+  warning?: string;
 }
