@@ -55,13 +55,18 @@ export default function Dashboard() {
   useEffect(() => {
     if (!walletBalances.isLoading && !walletBalances.error) {
       const { isLoading, error, refetch, ...balances } = walletBalances;
+      console.log('[Dashboard] Syncing balances to store:', balances);
       setBalances(balances);
     }
   }, [
     walletBalances.isLoading,
     walletBalances.error,
     walletBalances.btc,
+    walletBalances.eth.sepolia,
+    walletBalances.eth.base,
+    walletBalances.eth.linea,
     walletBalances.eth.total,
+    walletBalances.zeta.native,
     walletBalances.zeta.total,
     setBalances,
   ]);

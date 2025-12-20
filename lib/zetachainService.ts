@@ -11,11 +11,11 @@ export const PANIC_POD_SWAP_ABI = [
 ];
 
 // ZRC20 token addresses on ZetaChain Athens Testnet
-// TODO: Replace with actual ZRC20 token addresses once available
+// Verified from ZetaChain documentation and protocol-contracts-evm repo
 export const ZRC20_ADDRESSES = {
-  'ETH_SEPOLIA': '0x0000000000000000000000000000000000000000', // Placeholder - update with real address
-  'ETH_BASE': '0x0000000000000000000000000000000000000000',    // Placeholder - update with real address
-  'ETH_LINEA': '0x0000000000000000000000000000000000000000',   // Placeholder - update with real address
+  'ETH_SEPOLIA': '0x05BA149A7bd6dC1F937fA9046A9e05C05f3b18b0', // Verified from ZetaChain docs
+  'ETH_BASE': '0x236b0DE675cC8F46AE186897fCCeFe3370C9eDeD',    // TODO: Verify this address
+  // Linea support removed as per requirements
 };
 
 export interface SwapEstimation {
@@ -84,10 +84,23 @@ export async function getZBTCAddress(): Promise<string | null> {
 
 /**
  * Get the appropriate ZRC20 token address for a given chain
- * @param chain - The chain name ('sepolia', 'base', 'linea')
+ * @param chain - The chain name ('sepolia', 'base')
  * @returns The ZRC20 token address or null if unknown chain
  */
 export function getZRC20AddressForChain(chain: string): string | null {
   const chainKey = `ETH_${chain.toUpperCase()}` as keyof typeof ZRC20_ADDRESSES;
   return ZRC20_ADDRESSES[chainKey] || null;
+}
+
+/**
+ * Get Gateway address for a specific chain
+ * @param chainId - The chain ID (11155111 for Sepolia, 84532 for Base Sepolia)
+ * @returns The Gateway contract address or null if unknown chain
+ */
+export function getGatewayAddress(chainId: number): string | null {
+  const GATEWAYS: Record<number, string> = {
+    11155111: '0x0c487a766110c85d301d96e33579c5b317fa4995', // Sepolia
+    84532: '0x0c487a766110c85d301d96e33579c5b317fa4995',    // Base Sepolia
+  };
+  return GATEWAYS[chainId] || null;
 }

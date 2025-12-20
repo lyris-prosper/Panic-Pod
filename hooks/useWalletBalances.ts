@@ -40,7 +40,9 @@ export function useWalletBalances(
     setError(null);
 
     try {
+      console.log('[useWalletBalances] Fetching balances for:', { btcAddress, evmAddress });
       const result = await fetchAllBalances(btcAddress, evmAddress);
+      console.log('[useWalletBalances] Balance result:', result);
       setBalances(result);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch balances';

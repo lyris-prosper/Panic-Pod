@@ -2,7 +2,8 @@ import { DUST_THRESHOLD_USD } from '@/types';
 
 // Gas buffer constants
 export const EVM_GAS_BUFFER = 0.005; // Reserve 0.005 ETH for gas (enough for ~2-3 transactions)
-export const BTC_FEE_SATS = 10000;   // Reserve 10000 sats for mining fee
+export const BTC_FEE_SATS = 50000;   // Reserve 50000 sats (~0.0005 BTC) for mining fee
+                                      // Increased to handle larger transactions with multiple UTXOs
 
 /**
  * Calculate the maximum sendable amount after reserving gas/fees

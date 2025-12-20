@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, useRef, Suspense, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useStore } from '@/store/useStore';
 import { Navbar } from '@/components/layout/Navbar';
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { useExecutionPreview, enrichPreviewWithEstimations } from '@/hooks/useExecutionPreview';
 import { ExecutionPhase, ExecutionPreviewItem, StrategyMode, ExecutionStep, StepStatus } from '@/types';
+import { executeBitcoinTransfer, executeEvmTransfer, executeZetaChainSwap } from '@/lib/executionEngine';
 
 function ExecuteContent() {
   const router = useRouter();
@@ -35,6 +36,10 @@ function ExecuteContent() {
   const [isComplete, setIsComplete] = useState(false);
   const [totalValue] = useState(0);
   const [gasSpent] = useState((Math.random() * 50 + 20).toFixed(2));
+  
+  // Execution control refs to prevent re-execution
+  const hasExecutedRef = useRef(false);
+  const executionAbortRef = useRef<AbortController | null>(null);
 
   // Generate base preview (sync)
   const basePreview = useExecutionPreview(mode, strategy, balances, prices);
@@ -83,161 +88,297 @@ function ExecuteContent() {
     fetchEstimations();
   }, [phase, basePreview]);
 
-  // Phase 3: Executing - simulate execution
+  // Helper function to update execution state
+  const updateStepStatus = useCallback((
+    chainIndex: number,
+    stepIndex: number,
+    subStepIndex: number | null,
+    status: StepStatus,
+    txHash?: string
+  ) => {
+    const currentExecutions = useStore.getState().executions;
+    const newExecution = { ...currentExecutions[chainIndex] };
+
+    if (subStepIndex !== null && newExecution.steps[stepIndex].subSteps) {
+      newExecution.steps[stepIndex].subSteps![subStepIndex] = {
+        ...newExecution.steps[stepIndex].subSteps![subStepIndex],
+        status,
+        txHash,
+      };
+
+      const allSubStepsComplete = newExecution.steps[stepIndex].subSteps!.every(
+        (s) => s.status === 'success' || s.skipReason
+      );
+      const anySubStepProcessing = newExecution.steps[stepIndex].subSteps!.some(
+        (s) => s.status === 'processing'
+      );
+
+      newExecution.steps[stepIndex].status = allSubStepsComplete
+        ? 'success'
+        : anySubStepProcessing
+        ? 'processing'
+        : 'pending';
+    } else {
+      newExecution.steps[stepIndex] = {
+        ...newExecution.steps[stepIndex],
+        status,
+        txHash,
+      };
+    }
+
+    const allStepsComplete = newExecution.steps.every(
+      (s) => s.status === 'success' || s.skipReason
+    );
+    const anyStepProcessing = newExecution.steps.some((s) => s.status === 'processing');
+    newExecution.status = allStepsComplete ? 'success' : anyStepProcessing ? 'processing' : 'pending';
+
+    updateExecution(chainIndex, newExecution);
+  }, [updateExecution]);
+
+  // Phase 3: Executing - real blockchain transactions
   useEffect(() => {
-    if (phase !== 'executing' || !mode) return;
+    if (phase !== 'executing' || !mode || hasExecutedRef.current) return;
 
+    hasExecutedRef.current = true;
     setStartTime(new Date());
+    
+    const abortController = new AbortController();
+    executionAbortRef.current = abortController;
 
-    // Simulate execution based on the executions from store
-    const timeouts: NodeJS.Timeout[] = [];
-    let totalDelay = 0;
+    const executeAll = async () => {
+      const currentExecutions = useStore.getState().executions;
+      const currentStrategy = useStore.getState().strategy;
+      const currentBalances = useStore.getState().balances;
 
-    const processStep = (
-      chainIndex: number,
-      stepIndex: number,
-      subStepIndex: number | null,
-      status: StepStatus,
-      delay: number,
-      message: string,
-      txHash?: string
-    ) => {
-      totalDelay += delay;
-
-      const timeout = setTimeout(() => {
-        const newExecution = { ...executions[chainIndex] };
-
-        if (subStepIndex !== null && newExecution.steps[stepIndex].subSteps) {
-          // Update sub-step
-          newExecution.steps[stepIndex].subSteps![subStepIndex] = {
-            ...newExecution.steps[stepIndex].subSteps![subStepIndex],
-            status,
-            txHash,
-          };
-
-          // Update parent step status
-          const allSubStepsComplete = newExecution.steps[stepIndex].subSteps!.every(
-            (s) => s.status === 'success' || s.skipReason
-          );
-          const anySubStepProcessing = newExecution.steps[stepIndex].subSteps!.some(
-            (s) => s.status === 'processing'
-          );
-
-          newExecution.steps[stepIndex].status = allSubStepsComplete
-            ? 'success'
-            : anySubStepProcessing
-            ? 'processing'
-            : 'pending';
-        } else {
-          // Update main step
-          newExecution.steps[stepIndex] = {
-            ...newExecution.steps[stepIndex],
-            status,
-            txHash,
-          };
-        }
-
-        // Update chain status
-        const allStepsComplete = newExecution.steps.every(
-          (s) => s.status === 'success' || s.skipReason
-        );
-        const anyStepProcessing = newExecution.steps.some((s) => s.status === 'processing');
-        newExecution.status = allStepsComplete ? 'success' : anyStepProcessing ? 'processing' : 'pending';
-
-        updateExecution(chainIndex, newExecution);
-
-        // Add log
+      if (!currentStrategy || !currentBalances) {
         addLog({
           timestamp: new Date().toISOString(),
-          message,
-          type: status === 'success' ? 'success' : status === 'failed' ? 'error' : 'info',
+          message: 'Missing strategy or balance data',
+          type: 'error',
         });
-      }, totalDelay);
+        return;
+      }
 
-      timeouts.push(timeout);
+      const config = mode === 'escape' ? currentStrategy.escapeConfig : currentStrategy.havenConfig;
+      if (!config) return;
+
+      try {
+        // Execute BTC transfer (chainIndex 0)
+        const btcExecution = currentExecutions[0];
+        if (btcExecution && btcExecution.chain === 'btc') {
+          const btcStep = btcExecution.steps[0];
+          if (!btcStep.skipReason) {
+            updateStepStatus(0, 0, null, 'processing');
+            addLog({
+              timestamp: new Date().toISOString(),
+              message: 'Initiating BTC transfer...',
+              type: 'info',
+            });
+
+            try {
+              const btcTxHash = await executeBitcoinTransfer(
+                config.btcAddress,
+                currentBalances.btc
+              );
+
+              if (abortController.signal.aborted) return;
+
+              updateStepStatus(0, 0, null, 'success', btcTxHash);
+              addLog({
+                timestamp: new Date().toISOString(),
+                message: `BTC Transfer complete: ${btcTxHash}`,
+                type: 'success',
+              });
+            } catch (error) {
+              if (abortController.signal.aborted) return;
+              
+              const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+              updateStepStatus(0, 0, null, 'failed');
+              addLog({
+                timestamp: new Date().toISOString(),
+                message: `BTC Transfer failed: ${errorMessage}`,
+                type: 'error',
+              });
+            }
+          } else {
+            addLog({
+              timestamp: new Date().toISOString(),
+              message: `BTC: Skipped - ${btcStep.skipReason}`,
+              type: 'info',
+            });
+          }
+        }
+
+        // Execute ETH transfers (chainIndex 1)
+        const ethExecution = currentExecutions[1];
+        if (ethExecution && ethExecution.chain === 'eth') {
+          for (let stepIndex = 0; stepIndex < ethExecution.steps.length; stepIndex++) {
+            if (abortController.signal.aborted) return;
+            
+            const step = ethExecution.steps[stepIndex];
+            
+            if (step.skipReason) {
+              addLog({
+                timestamp: new Date().toISOString(),
+                message: `${step.name}: Skipped - ${step.skipReason}`,
+                type: 'info',
+              });
+              continue;
+            }
+
+            if (step.subSteps && step.subSteps.length > 0) {
+              // Process sub-steps (ZetaChain swap flow)
+              for (let subStepIndex = 0; subStepIndex < step.subSteps.length; subStepIndex++) {
+                if (abortController.signal.aborted) return;
+                
+                const subStep = step.subSteps[subStepIndex];
+                if (subStep.skipReason) {
+                  addLog({
+                    timestamp: new Date().toISOString(),
+                    message: `${subStep.name}: Skipped - ${subStep.skipReason}`,
+                    type: 'info',
+                  });
+                  continue;
+                }
+
+                updateStepStatus(1, stepIndex, subStepIndex, 'processing');
+                addLog({
+                  timestamp: new Date().toISOString(),
+                  message: `${subStep.name}...`,
+                  type: 'info',
+                });
+
+                try {
+                  const txHash = await executeZetaChainSwap(
+                    step.name,
+                    subStep.name,
+                    config.btcAddress
+                  );
+
+                  if (abortController.signal.aborted) return;
+
+                  updateStepStatus(1, stepIndex, subStepIndex, 'success', txHash);
+                  addLog({
+                    timestamp: new Date().toISOString(),
+                    message: `${subStep.name}: Complete - ${txHash}`,
+                    type: 'success',
+                  });
+                } catch (error) {
+                  if (abortController.signal.aborted) return;
+
+                  const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                  updateStepStatus(1, stepIndex, subStepIndex, 'failed');
+                  addLog({
+                    timestamp: new Date().toISOString(),
+                    message: `${subStep.name} failed: ${errorMessage}`,
+                    type: 'error',
+                  });
+
+                  // Stop processing remaining sub-steps if one fails
+                  break;
+                }
+              }
+            } else {
+              // Simple ETH transfer (Escape mode)
+              updateStepStatus(1, stepIndex, null, 'processing');
+              addLog({
+                timestamp: new Date().toISOString(),
+                message: `${step.name}...`,
+                type: 'info',
+              });
+
+              try {
+                const destAddress = config.evmAddress || '';
+
+                // Extract chain name from step name (e.g., "Transfer Sepolia ETH" -> "sepolia")
+                const chainName = step.name.toLowerCase().includes('sepolia') ? 'sepolia' :
+                                  step.name.toLowerCase().includes('base') ? 'base' : null;
+
+                if (!chainName) {
+                  throw new Error('Unknown chain in step name');
+                }
+
+                // Get balance for this specific chain
+                const chainBalance = currentBalances.eth[chainName];
+
+                // Get chainId from chain name
+                const chainId = chainName === 'sepolia' ? 11155111 :
+                                chainName === 'base' ? 84532 : null;
+
+                if (!chainId) {
+                  throw new Error('Unknown chain ID');
+                }
+
+                const txHash = await executeEvmTransfer(
+                  destAddress,
+                  chainBalance,
+                  chainId
+                );
+
+                if (abortController.signal.aborted) return;
+
+                updateStepStatus(1, stepIndex, null, 'success', txHash);
+                addLog({
+                  timestamp: new Date().toISOString(),
+                  message: `${step.name}: Complete - ${txHash}`,
+                  type: 'success',
+                });
+              } catch (error) {
+                if (abortController.signal.aborted) return;
+
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                updateStepStatus(1, stepIndex, null, 'failed');
+                addLog({
+                  timestamp: new Date().toISOString(),
+                  message: `${step.name} failed: ${errorMessage}`,
+                  type: 'error',
+                });
+              }
+            }
+          }
+        }
+
+        // ZETA execution (chainIndex 2) - always skipped
+        const zetaExecution = currentExecutions[2];
+        if (zetaExecution && zetaExecution.chain === 'zeta') {
+          const zetaStep = zetaExecution.steps[0];
+          if (zetaStep.skipReason) {
+            addLog({
+              timestamp: new Date().toISOString(),
+              message: `ZETA: ${zetaStep.skipReason}`,
+              type: 'info',
+            });
+          }
+        }
+
+        // Mark as complete
+        if (!abortController.signal.aborted) {
+          setPhase('complete');
+          setIsComplete(true);
+          addLog({
+            timestamp: new Date().toISOString(),
+            message: `${mode === 'escape' ? 'Security Escape' : 'Safe Haven'} evacuation completed successfully!`,
+            type: 'success',
+          });
+        }
+      } catch (error) {
+        if (!abortController.signal.aborted) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          addLog({
+            timestamp: new Date().toISOString(),
+            message: `Execution failed: ${errorMessage}`,
+            type: 'error',
+          });
+        }
+      }
     };
 
-    // Process each chain's executions
-    executions.forEach((execution, chainIndex) => {
-      execution.steps.forEach((step, stepIndex) => {
-        // Skip steps with skipReason
-        if (step.skipReason) {
-          processStep(
-            chainIndex,
-            stepIndex,
-            null,
-            'success',
-            0,
-            `Skipped: ${step.skipReason}`
-          );
-          return;
-        }
-
-        // Process steps with sub-steps
-        if (step.subSteps && step.subSteps.length > 0) {
-          step.subSteps.forEach((subStep, subStepIndex) => {
-            if (subStep.skipReason) {
-              processStep(
-                chainIndex,
-                stepIndex,
-                subStepIndex,
-                'success',
-                0,
-                `${subStep.name}: Skipped - ${subStep.skipReason}`
-              );
-            } else {
-              processStep(
-                chainIndex,
-                stepIndex,
-                subStepIndex,
-                'processing',
-                500,
-                `${subStep.name}...`
-              );
-              processStep(
-                chainIndex,
-                stepIndex,
-                subStepIndex,
-                'success',
-                1500,
-                `${subStep.name}: Complete`,
-                `0x${Math.random().toString(16).substring(2, 10)}...`
-              );
-            }
-          });
-        } else {
-          // Regular step without sub-steps
-          processStep(chainIndex, stepIndex, null, 'processing', 500, `${step.name}...`);
-          processStep(
-            chainIndex,
-            stepIndex,
-            null,
-            'success',
-            2000,
-            `${step.name}: Complete`,
-            execution.chain === 'btc' ? `bc1q${Math.random().toString(36).substring(2, 10)}...` : `0x${Math.random().toString(16).substring(2, 10)}...`
-          );
-        }
-      });
-    });
-
-    // Mark as complete
-    const completeTimeout = setTimeout(() => {
-      setPhase('complete');
-      setIsComplete(true);
-      addLog({
-        timestamp: new Date().toISOString(),
-        message: `${mode === 'escape' ? 'Security Escape' : 'Safe Haven'} evacuation completed successfully!`,
-        type: 'success',
-      });
-    }, totalDelay + 1000);
-
-    timeouts.push(completeTimeout);
+    executeAll();
 
     return () => {
-      timeouts.forEach(clearTimeout);
+      abortController.abort();
     };
-  }, [phase, mode, executions, updateExecution, addLog]);
+  }, [phase, mode, addLog, updateStepStatus]);
 
   const handleConfirmPreview = () => {
     if (!mode) return;

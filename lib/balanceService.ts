@@ -69,8 +69,11 @@ export async function fetchZRC20Balance(
     const balance = await contract.balanceOf(address);
     const decimals = await contract.decimals();
 
+    // Convert decimals from BigInt to Number to avoid type mixing
+    const decimalsNum = Number(decimals);
+
     // Convert from token units to decimal
-    return parseFloat(formatEther(balance)) * Math.pow(10, 18 - decimals);
+    return parseFloat(formatEther(balance)) * Math.pow(10, 18 - decimalsNum);
   } catch (error) {
     console.error(`Error fetching ZRC20 balance from ${tokenAddress}:`, error);
     return 0;

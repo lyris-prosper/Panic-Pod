@@ -24,10 +24,14 @@ export function useEvmWallet(): UseEvmWallet {
       setAddress(null);
       setIsConnected(false);
       setError('Please connect to MetaMask');
+      console.log('[useEvmWallet] Account disconnected');
     } else {
+      console.log('[useEvmWallet] Account changed to:', accountsArray[0]);
       setAddress(accountsArray[0]);
       setIsConnected(true);
       setError(null);
+      // Update localStorage
+      localStorage.setItem('evm_wallet_address', accountsArray[0]);
     }
   }, []);
 

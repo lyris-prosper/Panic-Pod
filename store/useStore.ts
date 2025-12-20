@@ -163,25 +163,40 @@ export const useStore = create<StoreState>((set) => ({
       const ethSteps: ExecutionStep[] = [];
 
       if (mode === 'escape') {
-        // Escape mode: Simple transfer or skip
-        if (config.evmAddress) {
-          ethSteps.push({
-            name: 'Transfer ETH to Safe Address',
-            status: 'pending'
-          });
-        } else {
-          ethSteps.push({
-            name: 'Transfer ETH to Safe Address',
-            status: 'pending',
-            skipReason: 'No EVM address configured'
-          });
-        }
-      } else {
-        // Haven mode: Process each chain separately
+        // Escape mode: Transfer ETH on each chain separately
         const chains = [
           { name: 'Sepolia', key: 'sepolia' as const },
           { name: 'Base', key: 'base' as const },
-          { name: 'Linea', key: 'linea' as const }
+        ];
+
+        for (const { name, key } of chains) {
+          const balance = balances.eth[key];
+
+          if (balance === 0) {
+            ethSteps.push({
+              name: `Transfer ${name} ETH`,
+              status: 'pending',
+              skipReason: 'No balance'
+            });
+          } else if (!config.evmAddress) {
+            ethSteps.push({
+              name: `Transfer ${name} ETH`,
+              status: 'pending',
+              skipReason: 'No EVM address configured'
+            });
+          } else {
+            ethSteps.push({
+              name: `Transfer ${name} ETH`,
+              status: 'pending'
+            });
+          }
+        }
+      } else {
+        // Haven mode: Process each chain separately
+        // Note: Linea support removed per implementation requirements
+        const chains = [
+          { name: 'Sepolia', key: 'sepolia' as const },
+          { name: 'Base', key: 'base' as const },
         ];
 
         for (const { name, key } of chains) {

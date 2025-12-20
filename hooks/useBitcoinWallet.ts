@@ -3,7 +3,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { UseBitcoinWallet, WindowWithBitcoin } from '@/types/wallet';
 
-export function useBitcoinWallet(): UseBitcoinWallet {
+export interface SendBitcoinResult {
+  txid: string;
+}
+
+export function useBitcoinWallet(): UseBitcoinWallet & { sendBitcoin: (toAddress: string, amountSats: number) => Promise<SendBitcoinResult> } {
   const [address, setAddress] = useState<string | null>(null);
   const [publicKey, setPublicKey] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -17,6 +21,71 @@ export function useBitcoinWallet(): UseBitcoinWallet {
     // Try window.btc first (Wallet Standard), then XverseProviders
     return btcWindow.btc || btcWindow.XverseProviders?.BitcoinProvider || null;
   }, []);
+
+  // Send Bitcoin transaction
+  const sendBitcoin = useCallback(async (toAddress: string, amountSats: number): Promise<SendBitcoinResult> => {
+    const provider = getProvider();
+
+    if (!provider) {
+      throw new Error('Xverse wallet is not installed');
+    }
+
+    if (!isConnected || !address) {
+      throw new Error('Wallet not connected');
+    }
+
+    if (amountSats <= 0) {
+      throw new Error('Invalid amount');
+    }
+
+    try {
+      const response = await provider.request('sendTransfer', {
+        recipients: [
+          {
+            address: toAddress,
+            amount: amountSats,
+          },
+        ],
+      });
+
+      if (response && typeof response === 'object') {
+        const res = response as Record<string, unknown>;
+        
+        if (res.error) {
+          const errorObj = res.error as Record<string, string>;
+          throw new Error(errorObj.message || 'Transaction failed');
+        }
+
+        // Extract txid from various response formats
+        let txid: string | null = null;
+        
+        if (res.result && typeof res.result === 'object') {
+          const result = res.result as Record<string, unknown>;
+          txid = (result.txid as string) || null;
+        }
+        
+        if (!txid && res.txid) {
+          txid = res.txid as string;
+        }
+
+        if (txid) {
+          return { txid };
+        }
+      }
+
+      throw new Error('No transaction ID returned');
+    } catch (err) {
+      if (err instanceof Error) {
+        if (err.message.includes('User rejected') || 
+            err.message.includes('denied') ||
+            err.message.includes('cancelled')) {
+          throw new Error('Transaction cancelled by user');
+        }
+        throw err;
+      }
+      throw new Error('Failed to send transaction');
+    }
+  }, [getProvider, isConnected, address]);
 
   // Connect wallet using Wallet Standard request method
   const connect = useCallback(async () => {
@@ -185,5 +254,6 @@ export function useBitcoinWallet(): UseBitcoinWallet {
     error,
     connect,
     disconnect,
+    sendBitcoin,
   };
 }
