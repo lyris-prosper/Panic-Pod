@@ -39,7 +39,7 @@ interface StoreState extends WalletState {
 
   // Strategy
   strategy: PanicStrategy | null;
-  setStrategy: (strategy: PanicStrategy) => void;
+  setStrategy: (config: Partial<PanicStrategy>) => void;
 
   // Execution
   isExecuting: boolean;
@@ -118,7 +118,10 @@ export const useStore = create<StoreState>((set) => ({
 
   // Strategy
   strategy: null,
-  setStrategy: (strategy) => set({ strategy }),
+  setStrategy: (config) =>
+    set((state) => ({
+      strategy: { ...state.strategy, ...config } as PanicStrategy
+    })),
 
   // Execution
   isExecuting: false,

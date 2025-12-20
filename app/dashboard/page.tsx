@@ -13,8 +13,9 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
-import { Asset, PriceData, TriggerCondition } from '@/types';
+import { Asset, PriceData, TriggerCondition, StrategyMode } from '@/types';
 import { ParsedTrigger } from '@/lib/qwenService';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -156,6 +157,7 @@ export default function Dashboard() {
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
 
   const [isStrategyModalOpen, setIsStrategyModalOpen] = useState(false);
+  const [strategyMode, setStrategyMode] = useState<StrategyMode>('escape');
   const [showAIParse, setShowAIParse] = useState(false);
   const [isParsingAI, setIsParsingAI] = useState(false);
   const [parsedResult, setParsedResult] = useState<ParsedTrigger | null>(null);
@@ -214,53 +216,96 @@ export default function Dashboard() {
   };
 
   const handleSaveStrategy = () => {
-    // Validate
-    const newErrors: { [key: string]: string } = {};
-    if (!btcAddress.trim()) {
-      newErrors.btcAddress = 'BTC address is required';
+    // Clear errors
+    setErrors({});
+
+    if (strategyMode === 'escape') {
+      // Validate BTC address
+      if (!btcAddress.trim()) {
+        setErrors({ btcAddress: 'BTC address is required' });
+        return;
+      }
+
+      // Save escape config
+      setStrategy({
+        escapeConfig: {
+          btcAddress: btcAddress.trim(),
+          evmAddress: evmAddress.trim() || undefined,
+        }
+      });
+
+      // Close and cleanup
+      setIsStrategyModalOpen(false);
+      resetModalState();
+
+    } else {
+      // Safe Haven mode
+      // Validate AI prompt
+      if (!aiPrompt.trim()) {
+        setErrors({ aiPrompt: 'AI trigger description is required' });
+        return;
+      }
+
+      // Validate parsed result exists
+      if (!parsedResult) {
+        setErrors({ aiPrompt: 'Please parse the trigger with AI first' });
+        return;
+      }
+
+      // Validate BTC address
+      if (!btcAddress.trim()) {
+        setErrors({ btcAddress: 'BTC address is required' });
+        return;
+      }
+
+      // Convert ParsedTrigger to TriggerCondition[]
+      const triggers: TriggerCondition[] = parsedResult.conditions.map(c => ({
+        asset: c.asset,
+        operator: c.operator === 'eq' ? 'lt' : c.operator,
+        value: c.value,
+      }));
+
+      // Save haven config
+      setStrategy({
+        havenConfig: {
+          btcAddress: btcAddress.trim(),
+          evmAddress: evmAddress.trim() || undefined,
+          aiPrompt: aiPrompt.trim(),
+          triggers,
+          triggerLogic: parsedResult.logic,
+        }
+      });
+
+      // Close and cleanup
+      setIsStrategyModalOpen(false);
+      resetModalState();
     }
+  };
 
-    if (!parsedResult) {
-      newErrors.aiPrompt = 'Please parse your trigger conditions first';
-    }
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
-
-    // Convert ParsedTrigger conditions to TriggerCondition[]
-    const triggers: TriggerCondition[] = parsedResult!.conditions.map((condition) => ({
-      asset: condition.asset,
-      operator: condition.operator === 'eq' ? 'lt' : condition.operator, // Convert 'eq' to 'lt' for compatibility
-      value: condition.value,
-    }));
-
-    // Save strategy
-    setStrategy({
-      safeAddresses: {
-        btc: btcAddress,
-        evm: evmAddress || undefined,
-      },
-      triggers,
-      triggerLogic: parsedResult!.logic,
-    });
-
-    setIsStrategyModalOpen(false);
-    setShowAIParse(false);
-    setParsedResult(null);
+  const resetModalState = () => {
     setBtcAddress('');
     setEvmAddress('');
     setAiPrompt('');
+    setParsedResult(null);
+    setShowAIParse(false);
     setErrors({});
+    setStrategyMode('escape'); // Reset to default
   };
 
-  const handlePanic = () => {
-    if (!strategy) {
-      alert('Please configure your strategy first');
+  const handleSecurityEscape = () => {
+    if (!strategy?.escapeConfig) {
+      alert('Please configure Security Escape strategy first');
       return;
     }
-    router.push('/execute');
+    router.push('/execute?mode=escape');
+  };
+
+  const handleSafeHaven = () => {
+    if (!strategy?.havenConfig) {
+      alert('Please configure Safe Haven strategy first');
+      return;
+    }
+    router.push('/execute?mode=haven');
   };
 
   return (
@@ -277,12 +322,24 @@ export default function Dashboard() {
             <p className="text-5xl font-display font-black text-safe text-glow">
               ${totalValue.toLocaleString()}
             </p>
-            {strategy && (
-              <div className="mt-4 inline-flex items-center gap-2 px-3 py-1 bg-safe/20 border border-safe/50 rounded-full">
-                <div className="w-2 h-2 bg-safe rounded-full animate-pulse" />
-                <span className="text-xs font-mono text-safe uppercase">Strategy Configured</span>
-              </div>
-            )}
+            {/* Strategy Status Badges */}
+            <div className="flex gap-2 mt-4 flex-wrap">
+              {strategy?.escapeConfig && (
+                <span className="px-3 py-1 rounded-full text-xs font-display bg-danger/20 text-danger border border-danger/50">
+                  🔒 Escape Ready
+                </span>
+              )}
+              {strategy?.havenConfig && (
+                <span className="px-3 py-1 rounded-full text-xs font-display bg-safe/20 text-safe border border-safe/50">
+                  🛡️ Haven Ready
+                </span>
+              )}
+              {!strategy?.escapeConfig && !strategy?.havenConfig && (
+                <span className="px-3 py-1 rounded-full text-xs font-display bg-pod-muted/20 text-pod-muted border border-pod-muted/50">
+                  No Strategy Configured
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -373,59 +430,70 @@ export default function Dashboard() {
         </div>
 
         {/* Quick actions */}
-        <div className="glass-panel p-8 rounded-lg">
-          <h2 className="text-2xl font-display font-bold mb-6 text-pod-text uppercase tracking-wider">
+        <div className="glass-panel border-safe/20 p-6 sm:p-8">
+          <h2 className="font-display text-xl sm:text-2xl text-pod-text mb-6">
             Emergency Controls
           </h2>
-          <div className="flex flex-col sm:flex-row gap-6">
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={() => setIsStrategyModalOpen(true)}
-              className="flex-1"
+
+          {/* Configure Strategy Button */}
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={() => setIsStrategyModalOpen(true)}
+            className="w-full mb-4"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
             >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                />
-              </svg>
-              Configure Strategy
-            </Button>
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+              />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+              />
+            </svg>
+            Configure Strategy
+          </Button>
+
+          {/* Dual PANIC Buttons */}
+          <div className="flex flex-col sm:flex-row gap-4">
+            {/* Security Escape Button */}
             <Button
               variant="danger"
               size="xl"
-              glow
-              onClick={handlePanic}
-              className="flex-1 relative group overflow-hidden"
+              onClick={handleSecurityEscape}
+              className="flex-1 h-24 sm:h-32 flex flex-col items-center justify-center gap-2 relative group glow"
+              disabled={!strategy?.escapeConfig}
             >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
-              PANIC
+              <span className="text-3xl sm:text-4xl">⚡</span>
+              <div className="text-center">
+                <div className="text-2xl sm:text-3xl font-bold">PANIC</div>
+                <div className="text-xs sm:text-sm opacity-80">Security Escape</div>
+              </div>
+            </Button>
+
+            {/* Safe Haven Button */}
+            <Button
+              variant="warning"
+              size="xl"
+              onClick={handleSafeHaven}
+              className="flex-1 h-24 sm:h-32 flex flex-col items-center justify-center gap-2 relative group glow"
+              disabled={!strategy?.havenConfig}
+            >
+              <span className="text-3xl sm:text-4xl">🛡️</span>
+              <div className="text-center">
+                <div className="text-2xl sm:text-3xl font-bold">PANIC</div>
+                <div className="text-xs sm:text-sm opacity-80">Safe Haven</div>
+              </div>
             </Button>
           </div>
         </div>
@@ -436,112 +504,152 @@ export default function Dashboard() {
         isOpen={isStrategyModalOpen}
         onClose={() => {
           setIsStrategyModalOpen(false);
-          setShowAIParse(false);
-          setErrors({});
+          resetModalState();
         }}
-        title="Configure Evacuation Strategy"
+        title="Configure Panic Strategy"
       >
         <div className="space-y-6">
-          {/* Safe addresses */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-display font-bold text-pod-text">
-              Safe Addresses
-            </h3>
-            <Input
-              label="BTC Safe Address"
-              placeholder="bc1q..."
-              value={btcAddress}
-              onChange={(e) => setBtcAddress(e.target.value)}
-              error={errors.btcAddress}
-              required
-            />
-            <Input
-              label="EVM Safe Address"
-              placeholder="Default: Convert to USDC and store in ZetaChain"
-              value={evmAddress}
-              onChange={(e) => setEvmAddress(e.target.value)}
-            />
-          </div>
+          {/* Segmented Control */}
+          <SegmentedControl
+            options={[
+              { value: 'escape', label: 'SECURITY ESCAPE', icon: '🔒' },
+              { value: 'haven', label: 'SAFE HAVEN', icon: '🛡️' }
+            ]}
+            value={strategyMode}
+            onChange={(mode) => setStrategyMode(mode as StrategyMode)}
+          />
 
-          {/* AI Strategy */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-display font-bold text-pod-text">
-              AI-Powered Trigger
-            </h3>
-            <Textarea
-              label="Describe Your Panic Trigger"
-              placeholder="e.g., 'If ETH drops below $2000 or BTC drops below $40000'"
-              rows={4}
-              value={aiPrompt}
-              onChange={(e) => setAiPrompt(e.target.value)}
-              error={errors.aiPrompt}
-            />
-            <Button
-              variant="outline"
-              size="md"
-              onClick={handleParseAI}
-              disabled={isParsingAI}
-            >
-              {isParsingAI ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  Parsing...
-                </>
-              ) : (
-                <>
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-                    />
-                  </svg>
-                  Parse with AI
-                </>
+          {/* Security Escape Form */}
+          {strategyMode === 'escape' && (
+            <div className="space-y-4">
+              <Input
+                label="BTC Safe Address"
+                placeholder="bc1q..."
+                value={btcAddress}
+                onChange={(e) => setBtcAddress(e.target.value)}
+                error={errors.btcAddress}
+                required
+              />
+              <Input
+                label="EVM Safe Address (Optional)"
+                placeholder="0x..."
+                value={evmAddress}
+                onChange={(e) => setEvmAddress(e.target.value)}
+              />
+            </div>
+          )}
+
+          {/* Safe Haven Form */}
+          {strategyMode === 'haven' && (
+            <div className="space-y-4">
+              {/* AI Trigger Description */}
+              <Textarea
+                label="AI Trigger Description"
+                placeholder="e.g., If ETH drops below $2000, convert everything to BTC."
+                rows={4}
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                error={errors.aiPrompt}
+              />
+
+              {/* Parse with AI Button */}
+              <Button
+                variant="outline"
+                size="md"
+                onClick={handleParseAI}
+                disabled={isParsingAI}
+              >
+                {isParsingAI ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    Parsing...
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+                      />
+                    </svg>
+                    Parse with AI
+                  </>
+                )}
+              </Button>
+
+              {/* AI Parse Results */}
+              {showAIParse && parsedResult && (
+                <div className="space-y-4 p-6 glass-panel rounded-lg border border-safe/50">
+                  <h3 className="text-lg font-display font-bold text-safe">
+                    Parsed Strategy
+                  </h3>
+
+                  <div>
+                    <p className="text-sm text-pod-muted font-mono mb-2">
+                      Trigger Conditions ({parsedResult.logic}):
+                    </p>
+                    <ul className="space-y-2">
+                      {parsedResult.conditions.map((condition, index) => (
+                        <li key={index} className="flex items-center gap-2 text-pod-text font-mono">
+                          <span className="text-warning">▸</span>
+                          {condition.asset} {condition.operator === 'lt' ? '<' : condition.operator === 'gt' ? '>' : '='} ${condition.value.toLocaleString()}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-pod-muted font-mono mb-2">Execution Plan:</p>
+                    <ul className="space-y-2">
+                      <li className="text-pod-text font-mono text-sm">
+                        <span className="text-warning font-bold">BTC:</span> {parsedResult.executionPlan.btc}
+                      </li>
+                      <li className="text-pod-text font-mono text-sm">
+                        <span className="text-blue-400 font-bold">ETH:</span> {parsedResult.executionPlan.eth}
+                      </li>
+                      <li className="text-pod-text font-mono text-sm">
+                        <span className="text-purple-400 font-bold">ZETA:</span> {parsedResult.executionPlan.zeta}
+                      </li>
+                    </ul>
+                  </div>
+                </div>
               )}
-            </Button>
-          </div>
 
-          {/* AI Parse Results */}
-          {showAIParse && parsedResult && (
-            <div className="space-y-4 p-6 glass-panel rounded-lg border border-safe/50">
-              <h3 className="text-lg font-display font-bold text-safe">
-                Parsed Strategy
-              </h3>
-
+              {/* BTC Safe Address */}
               <div>
-                <p className="text-sm text-pod-muted font-mono mb-2">
-                  Trigger Conditions ({parsedResult.logic}):
+                <Input
+                  label="BTC Safe Address"
+                  placeholder="bc1q..."
+                  value={btcAddress}
+                  onChange={(e) => setBtcAddress(e.target.value)}
+                  error={errors.btcAddress}
+                  required
+                />
+                <p className="mt-2 text-xs text-warning flex items-start gap-2">
+                  <span>⚠️</span>
+                  <span>Consider using a different address than your hot wallet for better security</span>
                 </p>
-                <ul className="space-y-2">
-                  {parsedResult.conditions.map((condition, index) => (
-                    <li key={index} className="flex items-center gap-2 text-pod-text font-mono">
-                      <span className="text-warning">▸</span>
-                      {condition.asset} {condition.operator === 'lt' ? '<' : condition.operator === 'gt' ? '>' : '='} ${condition.value.toLocaleString()}
-                    </li>
-                  ))}
-                </ul>
               </div>
 
+              {/* EVM Safe Address */}
               <div>
-                <p className="text-sm text-pod-muted font-mono mb-2">Execution Plan:</p>
-                <ul className="space-y-2">
-                  <li className="text-pod-text font-mono text-sm">
-                    <span className="text-warning font-bold">BTC:</span> {parsedResult.executionPlan.btc}
-                  </li>
-                  <li className="text-pod-text font-mono text-sm">
-                    <span className="text-blue-400 font-bold">ETH:</span> {parsedResult.executionPlan.eth}
-                  </li>
-                  <li className="text-pod-text font-mono text-sm">
-                    <span className="text-purple-400 font-bold">ZETA:</span> {parsedResult.executionPlan.zeta}
-                  </li>
-                </ul>
+                <Input
+                  label="EVM Safe Address (Optional)"
+                  placeholder="0x..."
+                  value={evmAddress}
+                  onChange={(e) => setEvmAddress(e.target.value)}
+                />
+                <p className="mt-2 text-xs text-cyan-400 flex items-start gap-2">
+                  <span>ℹ️</span>
+                  <span>Cross-Chain Protocol Active: Native ETH from connected chains will be swapped to BTC via ZetaChain and withdrawn to your BTC Safe Address. This EVM address is used as fallback for dust amounts (&lt;$50).</span>
+                </p>
               </div>
             </div>
           )}
@@ -553,20 +661,19 @@ export default function Dashboard() {
               size="md"
               onClick={() => {
                 setIsStrategyModalOpen(false);
-                setShowAIParse(false);
-                setErrors({});
+                resetModalState();
               }}
               className="flex-1"
             >
               Cancel
             </Button>
             <Button
-              variant="safe"
+              variant={strategyMode === 'escape' ? 'danger' : 'safe'}
               size="md"
               onClick={handleSaveStrategy}
-              className="flex-1"
+              className={strategyMode === 'haven' ? 'glow' : ''}
             >
-              Confirm & Save
+              {strategyMode === 'escape' ? 'Save Emergency Config' : 'Save Haven Strategy'}
             </Button>
           </div>
         </div>

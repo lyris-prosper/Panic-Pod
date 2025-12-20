@@ -44,9 +44,12 @@ export async function fetchEvmBalance(address: string, rpcUrl: string): Promise<
   try {
     const provider = new JsonRpcProvider(rpcUrl);
     const balance = await provider.getBalance(address);
-    return parseFloat(formatEther(balance));
+    const balanceInEth = parseFloat(formatEther(balance));
+    console.log(`[Balance Service] ${rpcUrl}: ${balanceInEth} ETH for ${address.substring(0, 10)}...`);
+    return balanceInEth;
   } catch (error) {
-    console.error(`Error fetching EVM balance from ${rpcUrl}:`, error);
+    console.error(`[Balance Service] Error fetching EVM balance from ${rpcUrl}:`, error);
+    console.error(`[Balance Service] Address: ${address}`);
     return 0;
   }
 }

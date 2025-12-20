@@ -8,7 +8,9 @@
       "Bash(curl:*)",
       "Bash(npx tsc:*)",
       "Bash(npm run build:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(node:*)",
+      "Bash(rm:*)"
     ]
   }
 }

@@ -15,7 +15,7 @@ export const ETHEREUM_SEPOLIA: ChainConfig = {
   chainId: 11155111,
   chainIdHex: '0xaa36a7',
   name: 'Ethereum Sepolia',
-  rpcUrl: 'https://rpc.sepolia.org',
+  rpcUrl: 'https://ethereum-sepolia-rpc.publicnode.com',
   blockExplorer: 'https://sepolia.etherscan.io',
   nativeCurrency: {
     name: 'Sepolia Ether',

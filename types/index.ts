@@ -41,10 +41,30 @@ export interface TriggerCondition {
   value: number;
 }
 
-export interface PanicStrategy {
-  safeAddresses: SafeAddresses;
-  triggers: TriggerCondition[];
+// Strategy mode enumeration
+export type StrategyMode = 'escape' | 'haven';
+
+// Security Escape configuration
+export interface EscapeConfig {
+  btcAddress: string;      // Required
+  evmAddress?: string;     // Optional
+}
+
+// Safe Haven configuration
+export interface HavenConfig {
+  btcAddress: string;      // Required, defaults to connected BTC wallet
+  evmAddress?: string;     // Optional, for dust amounts under $50
+  aiPrompt: string;        // Natural language trigger description
+  triggers: TriggerCondition[];  // Parsed conditions
   triggerLogic: 'AND' | 'OR';
+}
+
+// Dust threshold constant
+export const DUST_THRESHOLD_USD = 50;
+
+export interface PanicStrategy {
+  escapeConfig?: EscapeConfig;   // Security Escape configuration
+  havenConfig?: HavenConfig;     // Safe Haven configuration
 }
 
 export type StepStatus = 'pending' | 'processing' | 'success' | 'failed';
