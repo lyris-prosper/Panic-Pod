@@ -56,9 +56,6 @@ export function useBitcoinWallet(): UseBitcoinWallet {
         }
       }
 
-      console.log(`Xverse response (${methodUsed}):`, response);
-      console.log('Full response structure:', JSON.stringify(response, null, 2));
-
       // Handle various response formats from Xverse
       let addresses: Array<{ address: string; publicKey: string; purpose?: string }> = [];
 
@@ -67,17 +64,14 @@ export function useBitcoinWallet(): UseBitcoinWallet {
 
         // Check for error in response
         if (res.error) {
-          console.error('Xverse error response:', res.error);
           throw new Error((res.error as Record<string, string>).message || 'Wallet request failed');
         }
 
         // Xverse wallet_connect returns: { result: { addresses: [...] } }
         if (res.result && typeof res.result === 'object') {
           const result = res.result as Record<string, unknown>;
-          console.log('Result object:', result);
 
           if (Array.isArray(result.addresses)) {
-            console.log('Found addresses in result:', result.addresses);
             addresses = (result.addresses as Array<Record<string, unknown>>).map((addr) => ({
               address: (addr.address as string) || '',
               publicKey: (addr.publicKey as string) || '',
@@ -105,8 +99,6 @@ export function useBitcoinWallet(): UseBitcoinWallet {
         });
       }
 
-      console.log('Parsed addresses:', addresses);
-
       if (!addresses || addresses.length === 0) {
         setError('No Bitcoin addresses found. Please ensure you have a Bitcoin account in Xverse.');
         return;
@@ -120,26 +112,22 @@ export function useBitcoinWallet(): UseBitcoinWallet {
       const selectedAddress = paymentAddress || addresses[0];
 
       if (selectedAddress && selectedAddress.address) {
-        console.log('Setting BTC wallet state:', {
-          address: selectedAddress.address,
-          publicKey: selectedAddress.publicKey,
-        });
         setAddress(selectedAddress.address);
         setPublicKey(selectedAddress.publicKey || '');
         setIsConnected(true);
         setError(null);
-        console.log('BTC wallet state set successfully');
+
+        // Save to localStorage
+        localStorage.setItem('btc_wallet_connected', 'true');
+        localStorage.setItem('btc_wallet_address', selectedAddress.address);
       } else {
-        console.error('Selected address is invalid:', selectedAddress);
         setError('Invalid address received from wallet');
       }
     } catch (err) {
-      console.error('Xverse connect error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to connect wallet';
       setError(errorMessage);
       setIsConnected(false);
     } finally {
-      console.log('Connect function completed, isConnecting set to false');
       setIsConnecting(false);
     }
   }, [getProvider]);
@@ -150,27 +138,44 @@ export function useBitcoinWallet(): UseBitcoinWallet {
     setPublicKey(null);
     setIsConnected(false);
     setError(null);
+
+    // Clear from localStorage
+    localStorage.removeItem('btc_wallet_connected');
+    localStorage.removeItem('btc_wallet_address');
   }, []);
 
-  // Check if Xverse is installed on mount
+  // Check if Xverse is installed on mount and auto-reconnect if previously connected
   useEffect(() => {
-    const checkProvider = () => {
+    const checkProviderAndReconnect = () => {
       const provider = getProvider();
+
       if (!provider && typeof window !== 'undefined') {
         // Give it a moment for the extension to inject
         const timeout = setTimeout(() => {
           const retryProvider = getProvider();
           if (!retryProvider) {
             // Don't show error by default, only when user tries to connect
+          } else {
+            // Check for previous connection
+            const wasConnected = localStorage.getItem('btc_wallet_connected') === 'true';
+            if (wasConnected) {
+              connect();
+            }
           }
         }, 1000);
 
         return () => clearTimeout(timeout);
+      } else if (provider) {
+        // Check for previous connection immediately if provider is available
+        const wasConnected = localStorage.getItem('btc_wallet_connected') === 'true';
+        if (wasConnected) {
+          connect();
+        }
       }
     };
 
-    checkProvider();
-  }, [getProvider]);
+    checkProviderAndReconnect();
+  }, [getProvider, connect]);
 
   return {
     address,

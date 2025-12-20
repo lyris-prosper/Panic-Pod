@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Panic Pod - Cross-Chain Emergency Evacuation",
-  description: "One Click, All Chains, Safe Exit. Evacuate your BTC, ETH, and Solana assets simultaneously when market crashes.",
+  description: "One Click, All Chains, Safe Exit. Evacuate your BTC, ETH, and ZETA assets simultaneously when market crashes.",
 };
 
 export default function RootLayout({

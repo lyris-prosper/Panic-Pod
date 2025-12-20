@@ -2,13 +2,13 @@
 
 > One Click, All Chains, Safe Exit
 
-A Web3 application for emergency evacuation of crypto assets across Bitcoin, Ethereum, and Solana chains, powered by ZetaChain's cross-chain technology.
+A Web3 application for emergency evacuation of crypto assets across Bitcoin, Ethereum (multi-chain), and ZetaChain, powered by ZetaChain's cross-chain technology.
 
 ## Features
 
-- 🚀 **One-Click Evacuation**: Simultaneously evacuate BTC, ETH, and SOL assets
+- 🚀 **One-Click Evacuation**: Simultaneously evacuate BTC, ETH (Sepolia, Base, Linea), and ZETA assets
 - 🔗 **Cross-Chain**: Powered by ZetaChain for seamless cross-chain operations
-- 🤖 **AI-Powered**: Configure custom triggers using natural language
+- 🤖 **AI-Powered**: Configure custom triggers using natural language (Qwen API)
 - ⚡ **Real-Time**: Live execution status with detailed progress tracking
 - 🎨 **Modern UI**: Sci-fi inspired emergency pod interface with HUD elements
 
@@ -54,7 +54,8 @@ npm run dev
 - Auto-redirect to dashboard after connection
 
 ### 2. Dashboard
-- **Asset Overview**: Real-time portfolio value and asset cards for BTC, ETH, SOL
+- **Asset Overview**: Real-time portfolio value and asset cards for BTC, ETH (multi-chain), ZETA
+- **Manual Refresh**: User-controlled balance refresh (improved UX)
 - **Strategy Configuration**: Set safe addresses and AI-powered trigger conditions
 - **Emergency Controls**: Configure strategy or trigger PANIC evacuation
 
@@ -66,13 +67,17 @@ npm run dev
 
 ## Features in Detail
 
-### Mock Implementation
+### Real & Mock Implementation
 
-Currently, the following features use mock data:
-- Wallet connection (simulated with OKX Wallet)
-- Asset balances and prices
-- AI parsing (returns pre-configured results)
+**Real Features:**
+- Real wallet balances via RPC calls (Bitcoin, Ethereum testnets, ZetaChain)
+- Real-time price feeds via CoinGecko API
+- Real AI parsing using Qwen API (Alibaba Cloud)
+- Manual balance refresh for better UX
+
+**Mock Features:**
 - Execution progress (simulated with timeouts)
+- Transaction broadcasting (not yet implemented)
 
 ### Strategy Configuration
 
@@ -80,19 +85,18 @@ Configure your evacuation strategy with:
 - **Safe Addresses**:
   - BTC Safe Address (required)
   - EVM Safe Address (optional, defaults to USDC on ZetaChain)
-  - Solana Safe Address (optional, defaults to USDC on ZetaChain)
 
-- **AI Trigger**:
+- **AI Trigger (Qwen API)**:
   - Natural language input: "If ETH drops below $2000 or BTC drops below $40000"
-  - Automatic parsing into executable conditions
-  - Visual execution plan preview
+  - Automatic parsing into executable conditions (AND/OR logic)
+  - Visual execution plan preview with asset-specific strategies
 
 ### Execution Simulation
 
 The execute page simulates a full evacuation:
 1. **BTC**: Direct transfer to safe address
 2. **ETH**: Approve → Swap to USDC → Bridge to ZetaChain
-3. **SOL**: Approve → Swap to USDC → Bridge to ZetaChain
+3. **ZETA**: Process assets → Send to safe address
 
 All executions run in parallel with realistic timing and visual feedback.
 
@@ -137,11 +141,22 @@ Panic-Pod/
 └── public/               # Static assets
 ```
 
+## Environment Variables
+
+Create a `.env.local` file with:
+
+```bash
+NEXT_PUBLIC_QWEN_API_KEY=your_qwen_api_key_here
+```
+
+Get your Qwen API key from [Alibaba Cloud DashScope](https://dashscope.aliyun.com/).
+
 ## Future Enhancements
 
-- [ ] Real wallet integration (OKX Wallet SDK)
-- [ ] Live price feeds (CoinGecko/CoinMarketCap API)
-- [ ] Real AI parsing (OpenAI/Claude API)
+- [x] Real wallet balance fetching
+- [x] Live price feeds (CoinGecko API)
+- [x] Real AI parsing (Qwen API)
+- [x] Manual balance refresh
 - [ ] ZetaChain smart contract integration
 - [ ] Transaction signing and broadcasting
 - [ ] Historical execution records

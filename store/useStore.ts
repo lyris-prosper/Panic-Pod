@@ -1,6 +1,5 @@
 import { create } from 'zustand';
-import { Asset, PanicStrategy, ChainExecution, ExecutionLog } from '@/types';
-import { mockAssets } from '@/lib/mockData';
+import { Asset, PanicStrategy, ChainExecution, ExecutionLog, WalletBalances, PriceData } from '@/types';
 
 interface WalletState {
   // EVM (MetaMask)
@@ -22,7 +21,19 @@ interface StoreState extends WalletState {
   setBtcWallet: (address: string | null) => void;
   clearWallets: () => void;
 
-  // Assets
+  // Real balance data
+  balances: WalletBalances | null;
+  prices: PriceData | null;
+  isLoadingBalances: boolean;
+  balanceError: string | null;
+
+  // Balance actions
+  setBalances: (balances: WalletBalances | null) => void;
+  setPrices: (prices: PriceData | null) => void;
+  setLoadingBalances: (loading: boolean) => void;
+  setBalanceError: (error: string | null) => void;
+
+  // Assets (computed from balances + prices in Dashboard)
   assets: Asset[];
   totalValue: number;
 
@@ -59,11 +70,6 @@ export const useStore = create<StoreState>((set) => ({
         evmChainId: chainId,
         isEvmConnected,
         isFullyConnected,
-        // Load mock assets when both wallets connected
-        assets: isFullyConnected ? mockAssets : state.assets,
-        totalValue: isFullyConnected
-          ? mockAssets.reduce((sum, asset) => sum + asset.usdValue, 0)
-          : state.totalValue,
       };
     });
   },
@@ -75,11 +81,6 @@ export const useStore = create<StoreState>((set) => ({
         btcAddress: address,
         isBtcConnected,
         isFullyConnected,
-        // Load mock assets when both wallets connected
-        assets: isFullyConnected ? mockAssets : state.assets,
-        totalValue: isFullyConnected
-          ? mockAssets.reduce((sum, asset) => sum + asset.usdValue, 0)
-          : state.totalValue,
       };
     });
   },
@@ -93,11 +94,25 @@ export const useStore = create<StoreState>((set) => ({
       isFullyConnected: false,
       assets: [],
       totalValue: 0,
+      balances: null,
+      prices: null,
       strategy: null,
     });
   },
 
-  // Assets
+  // Real balance data
+  balances: null,
+  prices: null,
+  isLoadingBalances: false,
+  balanceError: null,
+
+  // Balance actions
+  setBalances: (balances) => set({ balances }),
+  setPrices: (prices) => set({ prices }),
+  setLoadingBalances: (loading) => set({ isLoadingBalances: loading }),
+  setBalanceError: (error) => set({ balanceError: error }),
+
+  // Assets (will be set by Dashboard from computed balances + prices)
   assets: [],
   totalValue: 0,
 
@@ -116,24 +131,23 @@ export const useStore = create<StoreState>((set) => ({
         {
           chain: 'btc',
           status: 'pending',
-          steps: [{ name: 'Send BTC', status: 'pending' }],
+          steps: [{ name: 'Send BTC to safe address', status: 'pending' }],
         },
         {
           chain: 'eth',
           status: 'pending',
           steps: [
-            { name: 'Approve', status: 'pending' },
+            { name: 'Approve ETH', status: 'pending' },
             { name: 'Swap to USDC', status: 'pending' },
             { name: 'Bridge to ZetaChain', status: 'pending' },
           ],
         },
         {
-          chain: 'sol',
+          chain: 'zeta',
           status: 'pending',
           steps: [
-            { name: 'Approve', status: 'pending' },
-            { name: 'Swap to USDC', status: 'pending' },
-            { name: 'Bridge to ZetaChain', status: 'pending' },
+            { name: 'Process ZETA assets', status: 'pending' },
+            { name: 'Send to safe address', status: 'pending' },
           ],
         },
       ],

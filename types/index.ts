@@ -1,6 +1,12 @@
-export type ChainType = 'btc' | 'eth' | 'sol';
+export type ChainType = 'btc' | 'eth-sepolia' | 'base-sepolia' | 'linea-sepolia' | 'zeta' | 'eth';
 
-export interface Asset {
+export interface ChainBalance {
+  chainName: string;
+  balance: number;
+  usdValue: number;
+}
+
+export interface AssetBalance {
   chain: ChainType;
   symbol: string;
   balance: number;
@@ -8,10 +14,25 @@ export interface Asset {
   usdValue: number;
 }
 
+export interface AggregatedAsset {
+  symbol: 'BTC' | 'ETH' | 'ZETA';
+  totalBalance: number;
+  totalUsdValue: number;
+  breakdown: AssetBalance[];
+}
+
+export interface Asset {
+  chain: ChainType;
+  symbol: string;
+  balance: number;
+  price: number;
+  usdValue: number;
+  breakdown?: ChainBalance[];
+}
+
 export interface SafeAddresses {
   btc: string;
   evm?: string;
-  solana?: string;
 }
 
 export interface TriggerCondition {
@@ -44,4 +65,32 @@ export interface ExecutionLog {
   timestamp: string;
   message: string;
   type: 'info' | 'success' | 'error' | 'warning';
+}
+
+export interface ZRC20Token {
+  symbol: string;
+  balance: number;
+  address: string;
+  usdValue?: number;
+}
+
+export interface WalletBalances {
+  btc: number;
+  eth: {
+    sepolia: number;
+    base: number;
+    linea: number;
+    total: number;
+  };
+  zeta: {
+    native: number;
+    zrc20: ZRC20Token[];
+    total: number;
+  };
+}
+
+export interface PriceData {
+  bitcoin: number;
+  ethereum: number;
+  zetachain: number;
 }

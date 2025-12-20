@@ -40,24 +40,22 @@ export default function Execute() {
     // Simulate execution progress
     const steps = [
       // BTC chain
-      { chain: 0, step: 0, status: 'processing' as const, delay: 1000, message: 'Initiating BTC transfer...' },
-      { chain: 0, step: 0, status: 'success' as const, delay: 3000, message: 'BTC transfer completed', txHash: '0x1a2b3c...' },
+      { chain: 0, step: 0, status: 'processing' as const, delay: 1000, message: 'Initiating BTC transfer to safe address...' },
+      { chain: 0, step: 0, status: 'success' as const, delay: 3000, message: 'BTC transfer completed', txHash: 'bc1q...tx123' },
 
       // ETH chain
       { chain: 1, step: 0, status: 'processing' as const, delay: 1500, message: 'Approving ETH...' },
       { chain: 1, step: 0, status: 'success' as const, delay: 2500, message: 'ETH approved' },
       { chain: 1, step: 1, status: 'processing' as const, delay: 500, message: 'Swapping ETH to USDC...' },
       { chain: 1, step: 1, status: 'success' as const, delay: 4000, message: 'Swap completed', txHash: '0x4d5e6f...' },
-      { chain: 1, step: 2, status: 'processing' as const, delay: 500, message: 'Bridging to ZetaChain...' },
+      { chain: 1, step: 2, status: 'processing' as const, delay: 500, message: 'Bridging USDC to ZetaChain...' },
       { chain: 1, step: 2, status: 'success' as const, delay: 3500, message: 'Bridge transfer completed', txHash: '0x7g8h9i...' },
 
-      // SOL chain
-      { chain: 2, step: 0, status: 'processing' as const, delay: 2000, message: 'Approving SOL...' },
-      { chain: 2, step: 0, status: 'success' as const, delay: 2000, message: 'SOL approved' },
-      { chain: 2, step: 1, status: 'processing' as const, delay: 500, message: 'Swapping SOL to USDC...' },
-      { chain: 2, step: 1, status: 'success' as const, delay: 3000, message: 'Swap completed', txHash: '0xjabc12...' },
-      { chain: 2, step: 2, status: 'processing' as const, delay: 500, message: 'Bridging to ZetaChain...' },
-      { chain: 2, step: 2, status: 'success' as const, delay: 3000, message: 'Bridge transfer completed', txHash: '0xdef345...' },
+      // ZETA chain
+      { chain: 2, step: 0, status: 'processing' as const, delay: 1000, message: 'Processing ZETA assets...' },
+      { chain: 2, step: 0, status: 'success' as const, delay: 2500, message: 'ZETA assets processed' },
+      { chain: 2, step: 1, status: 'processing' as const, delay: 500, message: 'Sending ZETA to safe address...' },
+      { chain: 2, step: 1, status: 'success' as const, delay: 3000, message: 'ZETA transfer completed', txHash: '0xzeta123...' },
     ];
 
     let totalDelay = 0;

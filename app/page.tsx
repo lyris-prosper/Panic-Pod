@@ -18,7 +18,6 @@ export default function Home() {
   useEffect(() => {
     // Only sync if hook has real values OR if explicitly disconnecting (was connected, now null)
     if (evmWallet.address !== undefined) {
-      console.log('Syncing EVM wallet to store:', evmWallet.address, evmWallet.chainId);
       setEvmWallet(evmWallet.address, evmWallet.chainId);
     }
   }, [evmWallet.address, evmWallet.chainId, setEvmWallet]);
@@ -26,27 +25,13 @@ export default function Home() {
   // Sync BTC wallet state to store
   useEffect(() => {
     if (btcWallet.address !== undefined) {
-      console.log('Syncing BTC wallet to store:', btcWallet.address);
       setBtcWallet(btcWallet.address);
     }
   }, [btcWallet.address, setBtcWallet]);
 
-  // Debug: Log connection status
-  useEffect(() => {
-    console.log('Connection status:', {
-      evmConnected: evmWallet.isConnected,
-      evmAddress: evmWallet.address,
-      btcConnected: btcWallet.isConnected,
-      btcAddress: btcWallet.address,
-      isFullyConnected,
-    });
-  }, [evmWallet.isConnected, evmWallet.address, btcWallet.isConnected, btcWallet.address, isFullyConnected]);
-
   // Redirect when both wallets connected
   useEffect(() => {
-    console.log('Checking redirect, isFullyConnected:', isFullyConnected);
     if (isFullyConnected) {
-      console.log('Redirecting to dashboard...');
       router.push('/dashboard');
     }
   }, [isFullyConnected, router]);
@@ -100,7 +85,7 @@ export default function Home() {
           {' '}— evacuate your{' '}
           <span className="text-warning">BTC</span>,{' '}
           <span className="text-warning">ETH</span>, and{' '}
-          <span className="text-warning">Solana</span>
+          <span className="text-warning">ZETA</span>
           {' '}assets simultaneously when market crashes
         </p>
 
@@ -199,7 +184,7 @@ export default function Home() {
               Multi-Chain
             </h3>
             <p className="text-sm text-pod-muted">
-              Bitcoin, Ethereum, and Solana - all chains in one operation
+              Bitcoin, Ethereum, and ZetaChain - all chains unified
             </p>
           </div>
 

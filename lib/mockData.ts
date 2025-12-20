@@ -15,13 +15,6 @@ export const mockAssets: Asset[] = [
     price: 2340,
     usdValue: 5850
   },
-  {
-    chain: 'sol',
-    symbol: 'SOL',
-    balance: 50,
-    price: 98,
-    usdValue: 4900
-  },
 ];
 
 export const mockExecution: ChainExecution[] = [
@@ -44,15 +37,6 @@ export const mockExecution: ChainExecution[] = [
       { name: 'Swap to USDC', status: 'processing' },
       { name: 'Bridge to ZetaChain', status: 'pending' }
     ]
-  },
-  {
-    chain: 'sol',
-    status: 'pending',
-    steps: [
-      { name: 'Approve', status: 'pending' },
-      { name: 'Swap to USDC', status: 'pending' },
-      { name: 'Bridge to ZetaChain', status: 'pending' }
-    ]
   }
 ];
 
@@ -64,5 +48,4 @@ export const mockParsedTriggers: TriggerCondition[] = [
 export const mockExecutionPlan = {
   btc: 'Transfer BTC directly to safe address',
   eth: 'Swap ETH to USDC → Bridge to ZetaChain',
-  sol: 'Swap SOL to USDC → Bridge to ZetaChain',
 };

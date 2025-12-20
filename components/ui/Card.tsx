@@ -5,6 +5,7 @@ interface CardProps {
   className?: string;
   hover?: boolean;
   corners?: boolean;
+  onClick?: () => void;
 }
 
 export const Card: React.FC<CardProps> = ({
@@ -12,6 +13,7 @@ export const Card: React.FC<CardProps> = ({
   className = '',
   hover = false,
   corners = true,
+  onClick,
 }) => {
   return (
     <div
@@ -21,6 +23,7 @@ export const Card: React.FC<CardProps> = ({
         ${hover ? 'hover:border-safe/50 transition-all duration-300' : ''}
         ${className}
       `}
+      onClick={onClick}
     >
       {children}
     </div>

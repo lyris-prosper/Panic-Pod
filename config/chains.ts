@@ -37,6 +37,19 @@ export const BASE_SEPOLIA: ChainConfig = {
   },
 };
 
+export const LINEA_SEPOLIA: ChainConfig = {
+  chainId: 59141,
+  chainIdHex: '0xe705',
+  name: 'Linea Sepolia',
+  rpcUrl: 'https://rpc.sepolia.linea.build',
+  blockExplorer: 'https://sepolia.lineascan.build',
+  nativeCurrency: {
+    name: 'Ether',
+    symbol: 'ETH',
+    decimals: 18,
+  },
+};
+
 export const ZETACHAIN_TESTNET: ChainConfig = {
   chainId: 7001,
   chainIdHex: '0x1b59',
@@ -61,11 +74,13 @@ export const BITCOIN_SIGNET = {
 export const SUPPORTED_EVM_CHAINS = [
   ETHEREUM_SEPOLIA,
   BASE_SEPOLIA,
+  LINEA_SEPOLIA,
   ZETACHAIN_TESTNET,
 ] as const;
 
 export const CHAIN_ID_MAP: Record<number, ChainConfig> = {
   [ETHEREUM_SEPOLIA.chainId]: ETHEREUM_SEPOLIA,
   [BASE_SEPOLIA.chainId]: BASE_SEPOLIA,
+  [LINEA_SEPOLIA.chainId]: LINEA_SEPOLIA,
   [ZETACHAIN_TESTNET.chainId]: ZETACHAIN_TESTNET,
 };

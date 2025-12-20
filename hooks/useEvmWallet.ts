@@ -64,6 +64,10 @@ export function useEvmWallet(): UseEvmWallet {
           method: 'eth_chainId',
         }) as string;
         setChainId(parseInt(currentChainId, 16));
+
+        // Save to localStorage
+        localStorage.setItem('evm_wallet_connected', 'true');
+        localStorage.setItem('evm_wallet_address', accounts[0]);
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to connect wallet';
@@ -80,6 +84,10 @@ export function useEvmWallet(): UseEvmWallet {
     setChainId(null);
     setIsConnected(false);
     setError(null);
+
+    // Clear from localStorage
+    localStorage.removeItem('evm_wallet_connected');
+    localStorage.removeItem('evm_wallet_address');
   }, []);
 
   // Switch network
@@ -152,25 +160,34 @@ export function useEvmWallet(): UseEvmWallet {
     };
   }, [getProvider, handleAccountsChanged, handleChainChanged]);
 
-  // Check if already connected on mount
+  // Check if already connected on mount (with localStorage persistence)
   useEffect(() => {
     const provider = getProvider();
     if (!provider) return;
 
     const checkConnection = async () => {
       try {
-        const accounts = await provider.request({
-          method: 'eth_accounts',
-        }) as string[];
+        // Check if previously connected via localStorage
+        const wasConnected = localStorage.getItem('evm_wallet_connected') === 'true';
 
-        if (accounts.length > 0) {
-          setAddress(accounts[0]);
-          setIsConnected(true);
+        if (wasConnected) {
+          const accounts = await provider.request({
+            method: 'eth_accounts',
+          }) as string[];
 
-          const currentChainId = await provider.request({
-            method: 'eth_chainId',
-          }) as string;
-          setChainId(parseInt(currentChainId, 16));
+          if (accounts.length > 0) {
+            setAddress(accounts[0]);
+            setIsConnected(true);
+
+            const currentChainId = await provider.request({
+              method: 'eth_chainId',
+            }) as string;
+            setChainId(parseInt(currentChainId, 16));
+          } else {
+            // Clear localStorage if no accounts found
+            localStorage.removeItem('evm_wallet_connected');
+            localStorage.removeItem('evm_wallet_address');
+          }
         }
       } catch (err) {
         console.error('Failed to check wallet connection:', err);

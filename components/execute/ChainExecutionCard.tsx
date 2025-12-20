@@ -10,11 +10,23 @@ interface ChainExecutionCardProps {
 const chainInfo = {
   btc: { name: 'Bitcoin', icon: '₿', color: 'text-warning' },
   eth: { name: 'Ethereum', icon: 'Ξ', color: 'text-blue-400' },
-  sol: { name: 'Solana', icon: '◎', color: 'text-purple-400' },
+  zeta: { name: 'ZetaChain', icon: 'Z', color: 'text-safe' },
+};
+
+// Map chain types to base chain for display
+const getBaseChain = (chain: string): 'btc' | 'eth' | 'zeta' => {
+  if (chain.includes('eth') || chain.includes('base') || chain.includes('linea')) {
+    return 'eth';
+  }
+  if (chain.includes('zeta')) {
+    return 'zeta';
+  }
+  return 'btc';
 };
 
 export const ChainExecutionCard: React.FC<ChainExecutionCardProps> = ({ execution }) => {
-  const info = chainInfo[execution.chain];
+  const baseChain = getBaseChain(execution.chain);
+  const info = chainInfo[baseChain];
 
   return (
     <Card className="relative overflow-hidden">
