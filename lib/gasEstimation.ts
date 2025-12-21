@@ -52,3 +52,40 @@ export function isDustAmount(
 ): boolean {
   return usdValue < threshold;
 }
+
+/**
+ * Check if a balance is at or below the reserved fee amount (post-transfer residual)
+ * These amounts cannot be transferred and should display as 0 after evacuation
+ * @param balance - The balance to check
+ * @param chain - The blockchain type ('btc' or 'eth')
+ * @returns True if the balance is only the fee reserve (should show as 0)
+ */
+export function isResidualBalance(
+  balance: number,
+  chain: 'btc' | 'eth'
+): boolean {
+  if (chain === 'btc') {
+    const feeInBtc = BTC_FEE_SATS / 100000000;
+    // Consider balance as residual if it's at or below the fee reserve
+    return balance <= feeInBtc;
+  } else {
+    // Consider balance as residual if it's at or below the gas buffer
+    return balance <= EVM_GAS_BUFFER;
+  }
+}
+
+/**
+ * Get the display balance - returns 0 if the balance is just residual fees
+ * @param balance - The actual balance
+ * @param chain - The blockchain type ('btc' or 'eth')
+ * @returns The balance to display (0 if residual, actual otherwise)
+ */
+export function getDisplayBalance(
+  balance: number,
+  chain: 'btc' | 'eth'
+): number {
+  if (isResidualBalance(balance, chain)) {
+    return 0;
+  }
+  return balance;
+}

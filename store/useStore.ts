@@ -48,6 +48,7 @@ interface StoreState extends WalletState {
   executionPhase: ExecutionPhase;
   executions: ChainExecution[];
   executionLogs: ExecutionLog[];
+  hasPanicExecuted: boolean; // Track if panic has been executed in current session
   startExecution: (mode: StrategyMode) => void;
   updateExecution: (chainIndex: number, execution: ChainExecution) => void;
   addLog: (log: ExecutionLog) => void;
@@ -132,6 +133,7 @@ export const useStore = create<StoreState>((set) => ({
   executionPhase: 'loading',
   executions: [],
   executionLogs: [],
+  hasPanicExecuted: false, // Resets on page refresh
   startExecution: (mode: StrategyMode) => {
     set((state) => {
       const strategy = state.strategy;
@@ -272,6 +274,7 @@ export const useStore = create<StoreState>((set) => ({
             type: 'info' as const,
           },
         ],
+        hasPanicExecuted: true, // Mark that panic has been executed
       };
     });
   },

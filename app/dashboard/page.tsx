@@ -16,6 +16,7 @@ import { Textarea } from '@/components/ui/Textarea';
 import { Asset, PriceData, TriggerCondition, StrategyMode } from '@/types';
 import { ParsedTrigger } from '@/lib/qwenService';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { getDisplayBalance } from '@/lib/gasEstimation';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -29,6 +30,7 @@ export default function Dashboard() {
     evmAddress: storeEvmAddress,
     setBalances,
     setPrices,
+    hasPanicExecuted,
   } = useStore();
 
   const evmWallet = useEvmWallet();
@@ -87,6 +89,7 @@ export default function Dashboard() {
   ]);
 
   // Compute assets from balances and prices
+  // Uses getDisplayBalance to show 0 for residual amounts (gas/fee reserves)
   const assets = useMemo((): Asset[] => {
     if (walletBalances.isLoading || pricesData.isLoading || !pricesData.bitcoin) {
       return [];
@@ -99,35 +102,52 @@ export default function Dashboard() {
       return 1;
     };
 
+    // Get display balances
+    // Only hide residual gas/fees (show 0) after panic has been executed
+    // Otherwise show real wallet balance
+    const btcDisplayBalance = hasPanicExecuted
+      ? getDisplayBalance(walletBalances.btc, 'btc')
+      : walletBalances.btc;
+    const sepoliaDisplayBalance = hasPanicExecuted
+      ? getDisplayBalance(walletBalances.eth.sepolia, 'eth')
+      : walletBalances.eth.sepolia;
+    const baseDisplayBalance = hasPanicExecuted
+      ? getDisplayBalance(walletBalances.eth.base, 'eth')
+      : walletBalances.eth.base;
+    const lineaDisplayBalance = hasPanicExecuted
+      ? getDisplayBalance(walletBalances.eth.linea, 'eth')
+      : walletBalances.eth.linea;
+    const ethTotalDisplay = sepoliaDisplayBalance + baseDisplayBalance + lineaDisplayBalance;
+
     return [
       {
         chain: 'btc' as const,
         symbol: 'BTC',
-        balance: walletBalances.btc,
+        balance: btcDisplayBalance,
         price: pricesData.bitcoin,
-        usdValue: walletBalances.btc * pricesData.bitcoin,
+        usdValue: btcDisplayBalance * pricesData.bitcoin,
       },
       {
         chain: 'eth' as const,
         symbol: 'ETH',
-        balance: walletBalances.eth.total,
+        balance: ethTotalDisplay,
         price: pricesData.ethereum,
-        usdValue: walletBalances.eth.total * pricesData.ethereum,
+        usdValue: ethTotalDisplay * pricesData.ethereum,
         breakdown: [
           {
             chainName: 'Ethereum Sepolia',
-            balance: walletBalances.eth.sepolia,
-            usdValue: walletBalances.eth.sepolia * pricesData.ethereum,
+            balance: sepoliaDisplayBalance,
+            usdValue: sepoliaDisplayBalance * pricesData.ethereum,
           },
           {
             chainName: 'Base Sepolia',
-            balance: walletBalances.eth.base,
-            usdValue: walletBalances.eth.base * pricesData.ethereum,
+            balance: baseDisplayBalance,
+            usdValue: baseDisplayBalance * pricesData.ethereum,
           },
           {
             chainName: 'Linea Sepolia',
-            balance: walletBalances.eth.linea,
-            usdValue: walletBalances.eth.linea * pricesData.ethereum,
+            balance: lineaDisplayBalance,
+            usdValue: lineaDisplayBalance * pricesData.ethereum,
           },
         ],
       },
@@ -151,7 +171,7 @@ export default function Dashboard() {
         ],
       },
     ];
-  }, [walletBalances, pricesData]);
+  }, [walletBalances, pricesData, hasPanicExecuted]);
 
   // Calculate total value
   const totalValue = useMemo(() => {
